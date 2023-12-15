@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/deps/aoc2023_day06a-058cb5185857d7b6.exe",
+            "cwd": "${workspaceFolder}",
+            // "osx": {
+            //     "name": "(OSX) Launch",
+            //     "type": "lldb",
+            //     "request": "launch",
+            //     "program": "${workspaceFolder}/target/debug/bevy_automata_01",
+            //     "cwd": "${workspaceFolder}",
+            // },
+            "args": [],
+            "stopAtEntry": false,
+            "environment": [
+                {"name": "PATH", "value": "${env:RUSTUP_HOME}/toolchains/stable-x86_64-pc-windows-msvc/bin;${workspaceFolder}/target/debug/deps;${env:PATH}"},
+                {"name": "RUST_BACKTRACE", "value": "1"},
+            ],
+            "preLaunchTask": "cargo build"
+        },
+    ]
+}
