@@ -50,9 +50,9 @@ fn parse_input_single(s: &str) -> Race {
 }
 
 fn get_num_wins(race: &Race) -> u32 {
-    let a = -1 as f32;
-    let b = race.time as f32;
-    let c = -((race.dist + 1) as f32);
+    let a = -1 as f64;
+    let b = race.time as f64;
+    let c = -((race.dist + 1) as f64);
 
     let sqrt_part = ((b * b) - (4. * a * c)).sqrt();
 
@@ -86,65 +86,12 @@ fn update_race_input(s: &str) -> String {
     new_input
 }
 
-fn sqrt64_floor(n: u64) -> (u64, bool) {
-    if n == 0 {
-        return (0, true);
-    }
-    if n == 1 {
-        return (1, true);
-    }
-
-    let mut min = 1 as u64;
-    let mut max = 2 as u64;
-    while (max * max) < n {
-        min = max;
-        max += max;
-    }
-    while (max - min) > 1 {
-        let mid = (min + max) / 2;
-        let mid_sq = mid * mid;
-        if mid_sq <= n {
-            min = mid;
-        } else {
-            max = mid;
-        }
-    }
-
-    if (max * max) == n {
-        (max, true)
-    } else {
-        (min, (min * min) == n)
-    }
-}
-
-pub fn get_num_of_ways_to_win_single_race(s: &str) -> u64 {
+pub fn get_num_of_ways_to_win_single_race(s: &str) -> u32 {
     let new_input = update_race_input(s);
 
     let race = parse_input_single(&new_input);
 
-    // Quadratic formula
-    // T = time
-    // D = dist + 1
-    // x * Tx - D
-    // -x^2 + Tx - D
-    // [-T +/- sqrt(T^2 - 4(-1)(-D))] / 2(-1)
-    // [-T +/- sqrt(T^2 - 4D)] / -2
-    // [T +/- sqrt(T^2 - 4D)] / 2
-    let quot = (race.time * race.time) - (4 * (race.dist + 1));
-    let (floor_sqrt_quot, sqrt_exact) = sqrt64_floor(quot);
-
-    let numerator1 = race.time - floor_sqrt_quot;
-    let numerator2 = race.time + floor_sqrt_quot;
-    let ans1_exact = sqrt_exact && ((numerator1 % 2) == 0);
-    // let ans2_exact = sqrt_exact && ((numerator2 % 2) == 0);
-
-    let mut ans1 = numerator1 / 2;
-    if !ans1_exact {
-        ans1 += 1;
-    }
-    let ans2 = numerator2 / 2;
-
-    ans2 - ans1 + 1
+    get_num_wins(&race)
 }
 
 #[cfg(test)]
@@ -199,27 +146,6 @@ mod tests {
             update_race_line("Distance:  9  40  200"),
             "Distance:  940200"
         );
-    }
-
-    #[test]
-    fn test_sqrt64_floor() {
-        assert_eq!(sqrt64_floor(0), (0, true));
-        assert_eq!(sqrt64_floor(1), (1, true));
-        assert_eq!(sqrt64_floor(2), (1, false));
-        assert_eq!(sqrt64_floor(3), (1, false));
-        assert_eq!(sqrt64_floor(4), (2, true));
-        assert_eq!(sqrt64_floor(5), (2, false));
-        assert_eq!(sqrt64_floor(6), (2, false));
-        assert_eq!(sqrt64_floor(7), (2, false));
-        assert_eq!(sqrt64_floor(8), (2, false));
-        assert_eq!(sqrt64_floor(9), (3, true));
-        assert_eq!(sqrt64_floor(15), (3, false));
-        assert_eq!(sqrt64_floor(16), (4, true));
-        assert_eq!(sqrt64_floor(17), (4, false));
-        assert_eq!(sqrt64_floor(24), (4, false));
-        assert_eq!(sqrt64_floor(25), (5, true));
-        assert_eq!(sqrt64_floor(26), (5, false));
-        assert_eq!(sqrt64_floor(2394973454433156), (48938466, true));
     }
 
     #[test]
