@@ -9,6 +9,7 @@ members = [
     "aoc2023_day05",
     "aoc2023_day06",
     "aoc2023_day07",
+    "aoc2023_day08",
 ]
 
 resolver = "2"
