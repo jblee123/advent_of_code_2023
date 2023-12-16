@@ -8,7 +8,7 @@
             "name": "(Windows) Launch",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target/debug/deps/aoc2023_day11a-7e8ebcd24fa817f1.exe",
+            "program": "${workspaceFolder}/target/debug/deps/aoc2023_day12a-7d0500cbf62b780c.exe",
             "cwd": "${workspaceFolder}",
             // "osx": {
             //     "name": "(OSX) Launch",
