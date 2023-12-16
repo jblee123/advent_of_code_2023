@@ -11,6 +11,10 @@ members = [
     "aoc2023_day07",
     "aoc2023_day08",
     "aoc2023_day09",
+    "aoc2023_day10",
 ]
 
 resolver = "2"
+
+[profile.dev]
+opt-level = 0
