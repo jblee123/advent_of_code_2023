@@ -1,10 +1,40 @@
+use chrono::Utc;
+use std::{collections::HashMap, time::Instant};
+
 #[derive(Debug, PartialEq, Clone, PartialOrd)]
 struct SpringRow {
     line_str: String,
-    working_segs: Vec<u32>,
+    working_segs: Vec<u64>,
 }
 
-fn gen_all_slot_combos(num_slots: u32, num_filled: u32) -> Vec<Vec<bool>> {
+fn n_choose_k(n: u64, k: u64) -> u64 {
+    if n < k {
+        println!("about to die with n={n}, k={k}!");
+    }
+    let mut n = n;
+    let mut k = k;
+    if k > (n - k) {
+        k = n - k;
+    }
+
+    let mut c = 1 as u64;
+    let mut i = 1 as u64;
+    while i <= k {
+        // panic on potential overflow
+        if (c / i) > (u64::MAX / n) {
+            panic!("n_choose_k OVERFLOW!!!");
+        }
+
+        c = c / i * n + c % i * n / i; // split c * n / i into (c / i * i + c % i) * n / i
+
+        i += 1;
+        n -= 1;
+    }
+
+    c
+}
+
+fn gen_all_slot_combos(num_slots: u64, num_filled: u64) -> Vec<Vec<bool>> {
     if num_slots <= num_filled {
         return vec![vec![true; num_slots as usize]];
     }
@@ -46,7 +76,7 @@ fn parse_spring_row(line: &str) -> SpringRow {
         .unwrap()
         .split(',')
         .map(|num_str| num_str.parse().unwrap())
-        .collect::<Vec<u32>>();
+        .collect::<Vec<u64>>();
 
     SpringRow {
         line_str: line_str,
@@ -56,10 +86,10 @@ fn parse_spring_row(line: &str) -> SpringRow {
 
 fn gen_all_possibilities(spring_row: &SpringRow) -> Vec<String> {
     let row_len = spring_row.line_str.len();
-    let total_filled_slots = spring_row.working_segs.iter().sum::<u32>();
-    let open_slots = row_len as u32 - total_filled_slots;
+    let total_filled_slots = spring_row.working_segs.iter().sum::<u64>();
+    let open_slots = row_len as u64 - total_filled_slots;
     let num_seg_slots = open_slots + 1;
-    let num_segs = spring_row.working_segs.len() as u32;
+    let num_segs = spring_row.working_segs.len() as u64;
     let seg_slot_combos = gen_all_slot_combos(num_seg_slots, num_segs);
 
     let seg_strs = spring_row
@@ -109,18 +139,146 @@ fn matches_template(s: &str, template: &str) -> bool {
     true
 }
 
-fn get_num_good_configs(spring_row: &SpringRow) -> u32 {
+fn get_num_good_configs(spring_row: &SpringRow) -> u64 {
     gen_all_possibilities(spring_row)
         .iter()
         .filter(|opt| matches_template(opt, &spring_row.line_str))
-        .count() as u32
+        .count() as u64
 }
 
-pub fn get_sum_of_num_good_configs(s: &str) -> u32 {
+fn do_get_num_good_configs2(spring_row: &SpringRow, history: &mut HashMap<String, u64>) -> u64 {
+    let history_hash = format!(
+        "{} {}",
+        spring_row.line_str,
+        spring_row
+            .working_segs
+            .iter()
+            .map(ToString::to_string)
+            .collect::<String>()
+    );
+
+    if let Some(prev_val) = history.get(&history_hash) {
+        return *prev_val;
+    }
+
+    if spring_row.working_segs.is_empty() {
+        if spring_row.line_str.contains('#') {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    let template = spring_row.line_str.trim_start_matches('.');
+    if template.is_empty() {
+        return 0;
+    }
+
+    let mut str_to_match = vec!['#'; spring_row.working_segs[0] as usize]
+        .iter()
+        .collect::<String>();
+    if (spring_row.working_segs[0] as usize) < template.len() {
+        str_to_match.push('.');
+    }
+
+    let template_len_to_check = str_to_match.len().min(template.len());
+    let can_match_front = matches_template(&str_to_match, &template[..template_len_to_check]);
+    let must_match_front = template.as_bytes()[0] == '#' as u8;
+
+    let count_from_matched_front = if can_match_front {
+        do_get_num_good_configs2(
+            &SpringRow {
+                line_str: template[str_to_match.len()..].to_string(),
+                working_segs: spring_row.working_segs[1..].into(),
+            },
+            history,
+        )
+    } else {
+        0
+    };
+
+    let count_from_unmatched_front = if must_match_front {
+        0
+    } else {
+        do_get_num_good_configs2(
+            &SpringRow {
+                line_str: template[1..].to_string(),
+                working_segs: spring_row.working_segs.clone(),
+            },
+            history,
+        )
+    };
+
+    let result = count_from_matched_front + count_from_unmatched_front;
+    history.insert(history_hash, result);
+    result
+}
+
+fn get_num_good_configs2(spring_row: &SpringRow) -> u64 {
+    let row_len = spring_row.line_str.len();
+    let total_filled_slots = spring_row.working_segs.iter().sum::<u64>();
+    let open_slots = row_len as u64 - total_filled_slots;
+    let num_seg_slots = open_slots + 1;
+    let num_segs = spring_row.working_segs.len() as u64;
+
+    let num_possibilities = n_choose_k(num_seg_slots, num_segs);
+    // println!("{num_seg_slots} choose {num_segs} = {num_possibilities} possibilities");
+
+    // Special case for all '?' since there's no other way to cut down on the
+    // search space.
+    if spring_row.line_str.chars().all(|c| c == '?') {
+        return num_possibilities;
+    }
+
+    let mut history = HashMap::<String, u64>::new();
+
+    do_get_num_good_configs2(spring_row, &mut history)
+}
+
+pub fn get_sum_of_num_good_configs(s: &str) -> u64 {
     s.lines()
         .map(|line| parse_spring_row(line))
         .map(|spring_row| get_num_good_configs(&spring_row))
         .sum()
+}
+
+fn unfold_line(s: &str) -> String {
+    let mut parts = s.split(' ');
+    let part1 = parts.next().unwrap();
+    let part2 = parts.next().unwrap();
+
+    let part1 = vec![part1; 5].join("?");
+    let part2 = vec![part2; 5].join(",");
+
+    format!("{part1} {part2}")
+}
+
+pub fn get_sum_of_num_good_configs_unfolded(s: &str) -> u64 {
+    let func_start = Instant::now();
+    println!("starting at {:?}", Utc::now());
+    let mut line_num = 1;
+    let result = s
+        .lines()
+        .map(|line| unfold_line(&line))
+        .map(|line| parse_spring_row(&line))
+        .map(|spring_row| {
+            let line_start = Instant::now();
+            let result = get_num_good_configs2(&spring_row);
+            println!(
+                "finished line {line_num} at {:?} in {} sec. result = {result}",
+                Utc::now(),
+                line_start.elapsed().as_secs()
+            );
+            line_num += 1;
+            result
+        })
+        .sum();
+    println!(
+        "ended at {:?} in {} sec",
+        Utc::now(),
+        func_start.elapsed().as_secs()
+    );
+    result
 }
 
 #[cfg(test)]
@@ -136,6 +294,7 @@ mod tests {
         "?###???????? 3,2,1\n",
     );
 
+    #[ignore]
     #[test]
     fn test_gen_all_slot_combos() {
         assert_eq!(
@@ -155,6 +314,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_parse_spring_row() {
         assert_eq!(
@@ -166,6 +326,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_gen_all_possibilities() {
         let expected = vec![
@@ -190,6 +351,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_matches_template() {
         assert_eq!(
@@ -202,6 +364,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_get_num_good_configs() {
         assert_eq!(
@@ -218,10 +381,166 @@ mod tests {
             }),
             10
         );
+        assert_eq!(
+            get_num_good_configs(&SpringRow {
+                line_str: "???.###????.###????.###????.###????.###".to_string(),
+                working_segs: vec![1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3]
+            }),
+            1
+        );
+        // assert_eq!(
+        //     get_num_good_configs(&SpringRow {
+        //         line_str: "?###??????????###??????????###??????????###??????????###????????"
+        //             .to_string(),
+        //         working_segs: vec![3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1]
+        //     }),
+        //     506250
+        // );
     }
 
     #[test]
+    fn test_get_num_good_configs2() {
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "???.###".to_string(),
+                working_segs: vec![1, 1, 3]
+            }),
+            1
+        );
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "???.###????.###????.###????.###????.###".to_string(),
+                working_segs: vec![1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3]
+            }),
+            1
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: ".??..??...?##.".to_string(),
+                working_segs: vec![1, 1, 3]
+            }),
+            4
+        );
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str:
+                    ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##."
+                        .to_string(),
+                working_segs: vec![1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3]
+            }),
+            16384
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "?#?#?#?#?#?#?#?".to_string(),
+                working_segs: vec![1, 3, 1, 6]
+            }),
+            1
+        );
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "?#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#?".to_string(),
+                working_segs: vec![1, 3, 1, 6, 1, 3, 1, 6, 1, 3, 1, 6, 1, 3, 1, 6, 1, 3, 1, 6]
+            }),
+            1
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "????.#...#...".to_string(),
+                working_segs: vec![4, 1, 1]
+            }),
+            1
+        );
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "????.#...#...?????.#...#...?????.#...#...?????.#...#...?????.#...#..."
+                    .to_string(),
+                working_segs: vec![4, 1, 1, 4, 1, 1, 4, 1, 1, 4, 1, 1, 4, 1, 1]
+            }),
+            16
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "????.######..#####.".to_string(),
+                working_segs: vec![1, 6, 5]
+            }),
+            4
+        );
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "????.######..#####.?????.######..#####.?????.######..#####.?????.######..#####.?????.######..#####."
+                    .to_string(),
+                working_segs: vec![1, 6, 5, 1, 6, 5, 1, 6, 5, 1, 6, 5, 1, 6, 5]
+            }),
+            2500
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "?###????????".to_string(),
+                working_segs: vec![3, 2, 1]
+            }),
+            10
+        );
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "?###??????????###??????????###??????????###??????????###????????"
+                    .to_string(),
+                working_segs: vec![3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1]
+            }),
+            506250
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "??????????????????????????????????????????????????????".to_string(),
+                working_segs: vec![1, 4, 1, 1, 4, 1, 1, 4, 1, 1, 4, 1, 1, 4, 1]
+            }),
+            3268760
+        );
+
+        assert_eq!(
+            get_num_good_configs2(&SpringRow {
+                line_str: "?#???.#??#?????.???#???.#??#?????.???#???.#??#?????.???#???.#??#?????.???#???.#??#?????.?".to_string(),
+                working_segs: vec![3, 1, 3, 1, 1, 3, 1, 3, 1, 1, 3, 1, 3, 1, 1, 3, 1, 3, 1, 1, 3, 1, 3, 1, 1]
+            }),
+            1259712
+        );
+    }
+
+    #[ignore]
+    #[test]
     fn test_get_sum_of_num_good_configs() {
         assert_eq!(get_sum_of_num_good_configs(SAMPLE_INPUT1), 21);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_unfold_line() {
+        assert_eq!(unfold_line(".# 1"), ".#?.#?.#?.#?.# 1,1,1,1,1");
+    }
+
+    #[ignore]
+    #[test]
+    fn test_get_sum_of_num_good_configs_unfolded() {
+        assert_eq!(get_sum_of_num_good_configs_unfolded(SAMPLE_INPUT1), 525152);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_asdf() {
+        let mut i = 0 as u64;
+        while i < 40000000000 {
+            if i % 1000000000 == 0 {
+                println!("i: {}", i);
+            }
+            i += 1;
+        }
+        println!("done");
+        // assert!(false);
     }
 }

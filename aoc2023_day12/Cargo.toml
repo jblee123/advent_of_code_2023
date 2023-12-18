@@ -14,5 +14,6 @@ name = "aoc2023_day12b"
 path = "src/day12b.rs"
 
 [dependencies]
+chrono = "0.4.31"
 
 aoc2023_utils = { path = "../aoc2023_utils" }
